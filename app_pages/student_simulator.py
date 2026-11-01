@@ -120,7 +120,7 @@ with col_output:
 
         # 1. Plotly Risk Gauge Meter
         fig_gauge = plot_student_risk_gauge(risk_pct, threshold_pct=th_fedra * 100)
-        st.plotly_chart(fig_gauge, use_container_width=True)
+        st.plotly_chart(fig_gauge, width='stretch')
         
         # Branch Breakdown Metrics
         with st.container(horizontal=True):
@@ -142,9 +142,28 @@ with tab_shap:
     
     with st.spinner("Computing local SHAP attributions..."):
         df_shap, base_val, _ = compute_student_shap(sim_student, artifacts=artifacts, max_features=12)
-        fig_shap = plot_student_shap_waterfall(df_shap, base_val=base_val)
-        st.plotly_chart(fig_shap, use_container_width=True)
         
+        col_sh_c, col_sh_t = st.columns([1.3, 1])
+        with col_sh_c:
+            fig_shap = plot_student_shap_waterfall(df_shap, base_val=base_val)
+            st.plotly_chart(fig_shap, use_container_width=True)
+            
+        with col_sh_t:
+            st.markdown("**SHAP Feature Impact Breakdown Table**")
+            tbl_shap = df_shap[['label', 'shap_value', 'direction', 'raw_value']].copy()
+            tbl_shap['raw_value'] = tbl_shap['raw_value'].apply(lambda x: f"{x:.2f}" if isinstance(x, (int, float)) else str(x))
+            st.dataframe(
+                tbl_shap,
+                column_config={
+                    "label": "Risk Factor",
+                    "raw_value": "Student Value",
+                    "shap_value": st.column_config.NumberColumn("Impact (Log-Odds)", format="%+.3f"),
+                    "direction": "Risk Effect"
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+            
     st.caption("Red bars indicate factors exacerbating student attrition risk. Green bars represent protective academic or demographic factors.")
 
 with tab_whatif:
@@ -185,4 +204,42 @@ with tab_whatif:
     with col_scen_chart:
         fig_whatif = plot_what_if_comparison(res, cf_res)
         st.plotly_chart(fig_whatif, use_container_width=True)
+        
+    st.divider()
+    st.markdown("##### Counterfactual Intervention Impact Table")
+    
+    cf_table = pd.DataFrame([
+        {
+            'Dimension': 'Tuition Status',
+            'Current Baseline': sim_student['TuitionPaid'],
+            'Post-Intervention': cf_student['TuitionPaid'],
+            'Change': 'Tuition Resolved' if interv_tuition else 'Unchanged'
+        },
+        {
+            'Dimension': 'Attendance Rate',
+            'Current Baseline': f"{sim_student['AttendanceRate']:.1f}%",
+            'Post-Intervention': f"{cf_student['AttendanceRate']:.1f}%",
+            'Change': f"+{interv_att}%" if interv_att > 0 else 'Unchanged'
+        },
+        {
+            'Dimension': 'Mentoring Sessions',
+            'Current Baseline': f"{sim_student['MentoringSessionsAttended']} sessions",
+            'Post-Intervention': f"{cf_student['MentoringSessionsAttended']} sessions",
+            'Change': f"+{interv_mentor} sessions" if interv_mentor > 0 else 'Unchanged'
+        },
+        {
+            'Dimension': 'Blended Risk Probability (FEDRA 3.0)',
+            'Current Baseline': f"{risk_pct:.1f}%",
+            'Post-Intervention': f"{cf_res['risk_score_pct']:.1f}%",
+            'Change': f"{delta_risk:+.1f}%"
+        },
+        {
+            'Dimension': 'Actionable Triage Tier',
+            'Current Baseline': priority,
+            'Post-Intervention': cf_res['priority'],
+            'Change': 'Risk Downgraded' if cf_res['priority'] != priority else 'Same Tier'
+        }
+    ])
+    st.dataframe(cf_table, hide_index=True, use_container_width=True)
+
 

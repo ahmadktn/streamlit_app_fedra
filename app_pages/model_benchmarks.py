@@ -45,7 +45,7 @@ with st.container(border=True):
     
     st.dataframe(
         summary_df,
-        use_container_width=True,
+        width='stretch',
         column_config={
             "Calibrated Threshold": st.column_config.NumberColumn(format="%.2f"),
             "Accuracy": st.column_config.ProgressColumn(format="%.3f", min_value=0.5, max_value=1.0),
@@ -60,7 +60,7 @@ with st.container(border=True):
     st.divider()
     st.markdown("##### Model Performance Benchmarks Comparison")
     fig_comp = plot_model_comparison_bars(eval_dict)
-    st.plotly_chart(fig_comp, use_container_width=True)
+    st.plotly_chart(fig_comp, width='stretch')
 
 # 2. Diagnostic Visualizations (ROC, PR, Reliability Curves - From Notebook Cell 10)
 with st.container(border=True):
@@ -74,21 +74,98 @@ with st.container(border=True):
     ])
     
     with tab_roc:
-        fig_roc = plot_roc_curves(eval_dict, yte)
-        st.plotly_chart(fig_roc, use_container_width=True)
+        col_roc_c, col_roc_t = st.columns([1.3, 0.9])
+        with col_roc_c:
+            fig_roc = plot_roc_curves(eval_dict, yte)
+            st.plotly_chart(fig_roc, use_container_width=True)
+        with col_roc_t:
+            st.markdown("##### Discrimination & AUC Audit Data")
+            roc_data = []
+            for m_name, res in eval_dict.items():
+                auc_v = res['auc']
+                gini = 2 * auc_v - 1
+                roc_data.append({
+                    'Model': m_name,
+                    'ROC-AUC': auc_v,
+                    'Gini Coefficient': gini,
+                    'Discrimination Tier': 'Exceptional (>=0.95)' if auc_v>=0.95 else ('Excellent (>=0.90)' if auc_v>=0.90 else 'Acceptable')
+                })
+            df_roc_tbl = pd.DataFrame(roc_data).sort_values(by='ROC-AUC', ascending=False)
+            st.dataframe(
+                df_roc_tbl,
+                column_config={
+                    "ROC-AUC": st.column_config.ProgressColumn(format="%.4f", min_value=0.5, max_value=1.0),
+                    "Gini Coefficient": st.column_config.NumberColumn(format="%.4f")
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+            st.caption("FEDRA 3.0 Ensemble combines gradient boosted decision boundaries with calibrated margins to optimize the overall area under the ROC curve.")
+
     with tab_pr:
-        fig_pr = plot_pr_curves(eval_dict, yte)
-        st.plotly_chart(fig_pr, use_container_width=True)
+        col_pr_c, col_pr_t = st.columns([1.3, 0.9])
+        with col_pr_c:
+            fig_pr = plot_pr_curves(eval_dict, yte)
+            st.plotly_chart(fig_pr, use_container_width=True)
+        with col_pr_t:
+            st.markdown("##### Precision-Recall Benchmark Data")
+            base_prev = float(np.mean(yte))
+            pr_data = []
+            for m_name, res in eval_dict.items():
+                p_test = res.get('p_test')
+                ap = average_precision_score(yte, p_test) if p_test is not None else res['f1']
+                lift = ap / base_prev
+                pr_data.append({
+                    'Model': m_name,
+                    'PR-AUC (Avg Precision)': ap,
+                    'Lift vs Baseline': f"{lift:.2f}×",
+                    'F1 @ Calibrated Th': res['f1']
+                })
+            df_pr_tbl = pd.DataFrame(pr_data).sort_values(by='PR-AUC (Avg Precision)', ascending=False)
+            st.dataframe(
+                df_pr_tbl,
+                column_config={
+                    "PR-AUC (Avg Precision)": st.column_config.ProgressColumn(format="%.4f", min_value=0.4, max_value=1.0),
+                    "F1 @ Calibrated Th": st.column_config.NumberColumn(format="%.4f")
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+            st.caption(f"Baseline student attrition rate in test cohort is {base_prev:.1%}. PR-AUC directly measures ability to catch at-risk students with minimal false alarms.")
+
     with tab_calib:
-        fig_calib = plot_calibration_curves(eval_dict, yte)
-        st.plotly_chart(fig_calib, use_container_width=True)
+        col_cal_c, col_cal_t = st.columns([1.3, 0.9])
+        with col_cal_c:
+            fig_calib = plot_calibration_curves(eval_dict, yte)
+            st.plotly_chart(fig_calib, use_container_width=True)
+        with col_cal_t:
+            st.markdown("##### Probability Calibration & Brier Score Data")
+            cal_data = []
+            for m_name in ['Random Forest', 'CatBoost', 'FEDRA 3.0']:
+                if m_name in eval_dict:
+                    brier = eval_dict[m_name].get('brier', 0.0)
+                    cal_data.append({
+                        'Model': m_name,
+                        'Brier Score Loss': brier,
+                        'Reliability Quality': 'Superior (< 0.05)' if brier < 0.05 else 'Acceptable'
+                    })
+            df_cal_tbl = pd.DataFrame(cal_data).sort_values(by='Brier Score Loss', ascending=True)
+            st.dataframe(
+                df_cal_tbl,
+                column_config={
+                    "Brier Score Loss": st.column_config.NumberColumn(format="%.4f")
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+            st.caption("Lower Brier score indicates that model probabilities closely reflect true empirical frequencies, critical for risk tier confidence.")
 
 # 3. Interactive Threshold Laboratory
 with st.container(border=True):
     st.subheader("Interactive decision threshold laboratory", anchor=False)
     st.caption("Observe how shifting the classification cutoff trades off False Negatives (missed failing students) against False Positives (false alarms).")
     
-    col_ctrl, col_cm, col_res = st.columns([1, 1.2, 0.8])
+    col_ctrl, col_cm, col_res = st.columns([1, 1.2, 0.9])
     
     with col_ctrl:
         selected_model = st.selectbox(
@@ -116,14 +193,49 @@ with st.container(border=True):
 
     cm = confusion_matrix(yte, dyn_preds)
     tn, fp, fn, tp = cm.ravel()
+    total_test = tn + fp + fn + tp
 
     with col_cm:
+        # Both Heatmap AND Numerical Matrix Dataframe
         fig_cm = plot_confusion_matrix_heatmap(cm, threshold=dynamic_th)
         st.plotly_chart(fig_cm, use_container_width=True)
 
     with col_res:
-        st.markdown("**Resulting metrics**")
+        st.markdown("**Resulting metrics & error rates**")
         st.metric("Recall (Sensitivity)", f"{dyn_rec:.1%}", f"{tp:,} caught", border=True)
-        st.metric("Precision", f"{dyn_prec:.1%}", f"{fp:,} false alarms", border=True)
+        st.metric("Precision (PPV)", f"{dyn_prec:.1%}", f"{fp:,} false alarms", border=True)
         st.metric("F1-score", f"{dyn_f1:.4f}", border=True)
+        
+    st.divider()
+    
+    # Detailed Accompanying Numerical Contingency Table
+    st.markdown("##### Detailed Contingency Table & Diagnostic Breakdown")
+    
+    col_cm_df, col_diag_df = st.columns(2)
+    with col_cm_df:
+        st.markdown(f"**Numerical Confusion Matrix (N = {total_test:,})**")
+        cm_df = pd.DataFrame(
+            [
+                [f"{tn:,} ({tn/total_test:.1%})", f"{fp:,} ({fp/total_test:.1%})"],
+                [f"{fn:,} ({fn/total_test:.1%})", f"{tp:,} ({tp/total_test:.1%})"]
+            ],
+            index=['Actual Retained (0)', 'Actual Attrition (1)'],
+            columns=['Predicted Retained (0)', 'Predicted At-Risk (1)']
+        )
+        st.dataframe(cm_df, use_container_width=True)
+        st.caption(f"Caught at-risk students: **{tp:,}** | Missed at-risk (FN): **{fn:,}** | False alarms (FP): **{fp:,}**")
+
+    with col_diag_df:
+        st.markdown("**Diagnostic Rate Breakdown**")
+        spec = tn / (tn + fp) if (tn + fp) > 0 else 0
+        npv = tn / (tn + fn) if (tn + fn) > 0 else 0
+        diag_df = pd.DataFrame([
+            {'Metric': 'True Positive Rate (Sensitivity)', 'Value': f"{dyn_rec:.2%}", 'Interpretation': 'At-risk students correctly flagged'},
+            {'Metric': 'True Negative Rate (Specificity)', 'Value': f"{spec:.2%}", 'Interpretation': 'Retained students correctly cleared'},
+            {'Metric': 'False Positive Rate (Type I Error)', 'Value': f"{fp/(tn+fp):.2%}", 'Interpretation': 'False alarm rate on thriving students'},
+            {'Metric': 'False Negative Rate (Type II Error)', 'Value': f"{fn/(tp+fn):.2%}", 'Interpretation': 'Missed dropouts (dangerous)'},
+            {'Metric': 'Positive Predictive Value (Precision)', 'Value': f"{dyn_prec:.2%}", 'Interpretation': 'Advisor triage precision quality'}
+        ])
+        st.dataframe(diag_df, hide_index=True, use_container_width=True)
+
 

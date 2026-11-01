@@ -64,12 +64,62 @@ if selected_funding != "All":
 with col_chart:
     with st.container(border=True):
         tab_dist, tab_fac = st.tabs(["Cohort risk distribution", "Faculty risk ranking"])
+        active_cohort = filtered_df if len(filtered_df) > 0 else df
+        
         with tab_dist:
-            fig_hist = plot_cohort_risk_histogram(filtered_df if len(filtered_df) > 0 else df, threshold=th_fedra)
+            fig_hist = plot_cohort_risk_histogram(active_cohort, threshold=th_fedra)
             st.plotly_chart(fig_hist, use_container_width=True)
+            
+            st.markdown("**Risk Tier Breakdown Table**")
+            tier_summary = active_cohort.groupby('Intervention_Priority').agg(
+                Students=('StudentID', 'count'),
+                Mean_GPA=('GPA', 'mean'),
+                Mean_Attendance=('AttendanceRate', 'mean'),
+                Mean_Risk_Score=('Risk_Score_Pct', 'mean')
+            ).reset_index()
+            tier_summary['Cohort_Share'] = (tier_summary['Students'] / len(active_cohort)) * 100
+            
+            st.dataframe(
+                tier_summary,
+                column_config={
+                    "Intervention_Priority": "Triage Priority Tier",
+                    "Students": st.column_config.NumberColumn("Students (N)", format="%d"),
+                    "Cohort_Share": st.column_config.NumberColumn("Share (%)", format="%.1f%%"),
+                    "Mean_GPA": st.column_config.NumberColumn("Avg GPA", format="%.2f"),
+                    "Mean_Attendance": st.column_config.NumberColumn("Avg Attendance", format="%.1f%%"),
+                    "Mean_Risk_Score": st.column_config.NumberColumn("Avg Risk", format="%.1f%%")
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+            
         with tab_fac:
-            fig_fac = plot_faculty_risk_breakdown(filtered_df if len(filtered_df) > 0 else df)
+            fig_fac = plot_faculty_risk_breakdown(active_cohort)
             st.plotly_chart(fig_fac, use_container_width=True)
+            
+            st.markdown("**Faculty Risk Data Leaderboard**")
+            fac_tbl = active_cohort.groupby('Faculty').agg(
+                Students=('StudentID', 'count'),
+                Mean_Risk=('Risk_Score_Pct', 'mean'),
+                At_Risk_Students=('Predicted_At_Risk', lambda x: int(x.sum())),
+                Mean_GPA=('GPA', 'mean')
+            ).reset_index().sort_values(by='Mean_Risk', ascending=False)
+            fac_tbl['At_Risk_Rate'] = (fac_tbl['At_Risk_Students'] / fac_tbl['Students']) * 100
+            
+            st.dataframe(
+                fac_tbl,
+                column_config={
+                    "Faculty": "Faculty",
+                    "Students": st.column_config.NumberColumn("Enrolled (N)", format="%d"),
+                    "Mean_Risk": st.column_config.ProgressColumn("Mean Risk (%)", format="%.1f%%", min_value=0, max_value=80),
+                    "At_Risk_Students": st.column_config.NumberColumn("Flagged At-Risk", format="%d"),
+                    "At_Risk_Rate": st.column_config.NumberColumn("At-Risk Rate (%)", format="%.1f%%"),
+                    "Mean_GPA": st.column_config.NumberColumn("Avg GPA", format="%.2f")
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+
 
 # 3. Triage Queue Table
 with st.container(border=True):
@@ -94,7 +144,7 @@ with st.container(border=True):
             "GPA_Momentum": st.column_config.NumberColumn("Δ GPA Velocity", format="%+.2f"),
             "AttendanceRate": st.column_config.NumberColumn("Attendance", format="%.1f%%")
         },
-        use_container_width=True,
+        width='stretch',
         hide_index=True
     )
     if len(filtered_df) > 500:
