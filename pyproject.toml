@@ -1,0 +1,26 @@
+[project]
+name = "streamlit-app"
+version = "0.1.0"
+description = "FEDRA 2.0 Student Dropout & Failure Risk Early Warning Dashboard"
+readme = "README.md"
+authors = [
+    { name = "AhmadBB", email = "babangidaa584@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "streamlit>=1.40.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "catboost>=1.2.0",
+    "xgboost>=2.0.0",
+    "altair>=5.0.0",
+    "plotly>=5.18.0",
+]
+
+[project.scripts]
+streamlit-app = "streamlit_app:main"
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
