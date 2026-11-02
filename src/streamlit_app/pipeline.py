@@ -22,8 +22,8 @@ CACHE_CANDIDATE_PATHS = [
 ]
 
 DATA_CANDIDATE_PATHS = [
-    "../../nigerian_student_dropout_dataset.csv",
     "../nigerian_student_dropout_dataset.csv",
+    "nigerian_student_dropout_dataset.csv",
     "nigerian_student_dropout_dataset.csv",
     os.path.join(os.path.dirname(__file__), "../../../../nigerian_student_dropout_dataset.csv"),
     "/home/ahmad/Downloads/fedra datasets/nigerian_student_dropout_dataset.csv"
