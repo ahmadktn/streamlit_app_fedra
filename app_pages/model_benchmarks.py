@@ -3,7 +3,7 @@ from pathlib import Path
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, average_precision_score
 
 src_path = str(Path(__file__).resolve().parent.parent / "src")
 if src_path not in sys.path:
