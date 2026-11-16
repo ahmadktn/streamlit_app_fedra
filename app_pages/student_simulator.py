@@ -12,7 +12,7 @@ from fedra_app.pipeline import train_suite_models, predict_single_student, compu
 from fedra_app.visualizations import plot_student_risk_gauge, plot_student_shap_waterfall, plot_what_if_comparison
 
 st.header("Single-student risk simulator & what-if lab", anchor=False)
-st.caption("Diagnose individual risk trajectories, simulate scenario interventions, and view real-time risk adjustments for Nigerian students.")
+st.caption("Diagnose individual risk trajectories, simulate scenario interventions, and view real-time risk adjustments for Nigerian students. To score an entire cohort or roster from a CSV file, visit **Batch CSV prediction** in the sidebar.")
 
 artifacts = train_suite_models()
 meta_weights = artifacts['meta_weights']

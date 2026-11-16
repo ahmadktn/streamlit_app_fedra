@@ -24,14 +24,19 @@ nav = st.navigation(
             default=True
         ),
         st.Page(
-            "app_pages/eda_patterns.py",
-            title="EDA & risk patterns",
-            icon=":material/insights:"
+            "app_pages/batch_prediction.py",
+            title="Batch CSV prediction",
+            icon=":material/upload_file:"
         ),
         st.Page(
             "app_pages/student_simulator.py",
             title="Student risk simulator",
             icon=":material/person_search:"
+        ),
+        st.Page(
+            "app_pages/eda_patterns.py",
+            title="EDA & risk patterns",
+            icon=":material/insights:"
         ),
         st.Page(
             "app_pages/model_benchmarks.py",

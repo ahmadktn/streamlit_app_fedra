@@ -12,7 +12,16 @@ A multi-page Streamlit application for institutional learning analytics, student
    - **Faculty Attrition Risk Breakdown** ranking attrition across all university faculties.
    - Filterable student queue with progress risk indicators and intervention recommendations.
 
-2. **EDA & Empirical Risk Patterns (from Jupyter Notebook):**
+2. **Batch Student Risk Prediction & CSV Upload:**
+   - **CSV Template Download**: Downloadable blank schema template (`fedra3_student_template_blank.csv`) and sample populated dataset (`fedra3_sample_students_10.csv`).
+   - **One-Click Demo Loading**: Test predictions instantly with 10 representative Nigerian student archetypes.
+   - **Flexible CSV Upload**: Upload custom institutional rosters or class files with automatic regex extraction and robust missing-value handling.
+   - **Multi-Branch Ensemble Scoring**: Instant tri-branch inference (CatBoost, XGBoost, and Logistic Regression) with calibrated decision cutoffs.
+   - **Interactive Batch Analytics**: Risk distribution histogram, triage tier donut breakdown, and faculty risk comparison.
+   - **Filterable Intervention Queue**: Search and filter by triage tier, faculty, and student metadata.
+   - **Scored Predictions Export**: Download full results or flagged at-risk students as CSV.
+
+3. **EDA & Empirical Risk Patterns (from Jupyter Notebook):**
    - **Student Academic Outcome Distribution**: Interactive donut breakdown across outcomes (Graduated, Enrolled, Dropout, Suspended, Expelled).
    - **Academic Momentum Box Plots**: GPA velocity ($\Delta = \text{GPA} - \text{Prev GPA}$) distribution across outcomes with zero-momentum reference line.
    - **Attendance vs. GPA Density Scatter**: High-density clustering visualization highlighting the Critical Danger Zone (Attendance < 60% & GPA < 2.0).

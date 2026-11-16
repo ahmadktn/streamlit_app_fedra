@@ -648,3 +648,102 @@ def plot_mitigation_impact(dpd_base, eod_base, f1_base, dpd_mit, eod_mit, f1_mit
     apply_sleek_layout(fig, title="Fairness & Utility Trade-Off: Pre vs. Post Bias Mitigation", height=340)
     fig.update_yaxes(title="Metric Value", range=[0, max(max(before), max(after)) * 1.3])
     return fig
+
+
+# ==============================================================================
+# 5. BATCH PREDICTION VISUALIZATIONS
+# ==============================================================================
+
+def plot_batch_risk_distribution(df, threshold=0.35):
+    """Histogram of FEDRA 3.0 predicted risk scores across the uploaded batch."""
+    scores = df['Risk_Score_Pct']
+    n_students = len(df)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=scores,
+        nbinsx=min(30, max(5, n_students)),
+        marker=dict(
+            color='#3b82f6',
+            line=dict(color='#1e40af', width=1)
+        ),
+        hovertemplate="Risk Range: %{x}%<br>Students: %{y:,}<extra></extra>"
+    ))
+    
+    th_pct = threshold * 100
+    fig.add_vline(x=th_pct, line_dash="dash", line_color="#ef4444", line_width=2.5,
+                  annotation_text=f"Cutoff ({th_pct:.1f}%)", annotation_position="top left",
+                  annotation_font=dict(size=11, color="#ef4444"))
+    
+    fig.add_vrect(x0=0, x1=th_pct, fillcolor="#10b981", opacity=0.08, line_width=0,
+                  annotation_text="On Track Zone", annotation_position="top left",
+                  annotation_font=dict(size=10, color="#059669"))
+    fig.add_vrect(x0=th_pct, x1=100, fillcolor="#ef4444", opacity=0.08, line_width=0,
+                  annotation_text="At-Risk Priority Zone", annotation_position="top right",
+                  annotation_font=dict(size=10, color="#dc2626"))
+                  
+    apply_sleek_layout(fig, title=f"Uploaded Batch Risk Distribution (N={n_students:,})", height=350, show_legend=False)
+    fig.update_xaxes(title="FEDRA 3.0 Predicted Risk Probability (%)", range=[0, 100])
+    fig.update_yaxes(title="Number of Students")
+    return fig
+
+
+def plot_batch_priority_donut(df):
+    """Donut chart showing intervention priority breakdown of the uploaded batch."""
+    counts = df['Intervention_Priority'].value_counts()
+    tier_order = ['Critical Priority', 'Moderate Risk', 'On Track']
+    palette = {
+        'Critical Priority': '#ef4444',
+        'Moderate Risk': '#f59e0b',
+        'On Track': '#10b981'
+    }
+    
+    labels = [t for t in tier_order if t in counts]
+    values = [counts[t] for t in labels]
+    colors = [palette[t] for t in labels]
+    
+    fig = go.Figure(data=[go.Pie(
+        labels=labels,
+        values=values,
+        hole=0.55,
+        marker=dict(colors=colors, line=dict(color='#ffffff', width=2)),
+        textinfo='label+percent',
+        hovertemplate="<b>%{label}</b><br>Students: %{value:,} (%{percent})<extra></extra>"
+    )])
+    
+    apply_sleek_layout(fig, title="Triage Priority Distribution", height=350)
+    fig.update_layout(
+        annotations=[dict(text=f"<b>N={len(df):,}</b>", x=0.5, y=0.5, font_size=15, showarrow=False)]
+    )
+    return fig
+
+
+def plot_batch_faculty_bars(df):
+    """Bar chart ranking average risk by faculty for the uploaded batch."""
+    if 'Faculty' not in df.columns:
+        return None
+        
+    fac_summary = df.groupby('Faculty').agg(
+        Mean_Risk=('Risk_Score_Pct', 'mean'),
+        Students=('StudentID', 'count')
+    ).reset_index().sort_values(by='Mean_Risk', ascending=True)
+    
+    fig = go.Figure(go.Bar(
+        x=fac_summary['Mean_Risk'],
+        y=fac_summary['Faculty'],
+        orientation='h',
+        marker=dict(
+            color=fac_summary['Mean_Risk'],
+            colorscale=[[0, '#10b981'], [0.4, '#3b82f6'], [0.7, '#f59e0b'], [1.0, '#ef4444']],
+            showscale=False
+        ),
+        text=[f"{v:.1f}% ({s} stu)" for v, s in zip(fac_summary['Mean_Risk'], fac_summary['Students'])],
+        textposition='outside',
+        hovertemplate="Faculty: %{y}<br>Mean Risk: %{x:.1f}%<extra></extra>"
+    ))
+    
+    apply_sleek_layout(fig, title="Mean Risk Score by Faculty (Batch)", height=max(280, len(fac_summary) * 32))
+    fig.update_xaxes(title="Average Dropout Probability (%)", range=[0, 105])
+    fig.update_yaxes(title="")
+    return fig
+
