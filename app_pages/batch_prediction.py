@@ -1,6 +1,7 @@
 import sys
 import os
 from pathlib import Path
+import importlib
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,6 +9,9 @@ import numpy as np
 src_path = str(Path(__file__).resolve().parent.parent / "src")
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
+
+import fedra_app.pipeline
+importlib.reload(fedra_app.pipeline)
 
 from fedra_app.pipeline import (
     train_suite_models,
@@ -142,7 +146,7 @@ if 'batch_df_raw' in st.session_state:
     st.info(f"📁 Loaded dataset: **{src_name}** | **{len(df_current):,}** student records detected across **{len(df_current.columns)}** columns.")
     
     with st.expander("👁️ Preview Raw Uploaded Data (First 5 Rows)", expanded=False):
-        st.dataframe(df_current.head(5), use_container_width=True)
+        st.dataframe(df_current.head(5), width='stretch')
 
     # Prediction Action Button
     col_btn, col_info = st.columns([1, 2])
@@ -210,16 +214,16 @@ if 'batch_df_raw' in st.session_state:
         
         with col_c1:
             fig_dist = plot_batch_risk_distribution(res_df, threshold=th_fedra)
-            st.plotly_chart(fig_dist, use_container_width=True)
+            st.plotly_chart(fig_dist, width='stretch')
             
         with col_c2:
             fig_donut = plot_batch_priority_donut(res_df)
-            st.plotly_chart(fig_donut, use_container_width=True)
+            st.plotly_chart(fig_donut, width='stretch')
 
         if 'Faculty' in res_df.columns and res_df['Faculty'].nunique() > 1:
             fig_fac = plot_batch_faculty_bars(res_df)
             if fig_fac:
-                st.plotly_chart(fig_fac, use_container_width=True)
+                st.plotly_chart(fig_fac, width='stretch')
 
         st.divider()
 
@@ -279,7 +283,7 @@ if 'batch_df_raw' in st.session_state:
                 "Intervention_Priority": st.column_config.TextColumn("Triage Tier"),
                 "Actionable_Recommendation": st.column_config.TextColumn("Personalized Intervention Action")
             },
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
 
