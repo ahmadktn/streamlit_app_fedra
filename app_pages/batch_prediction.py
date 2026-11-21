@@ -38,11 +38,14 @@ with st.spinner("Initializing FEDRA 3.0 ensemble pipeline..."):
     artifacts = train_suite_models()
     th_fedra = artifacts['eval']['FEDRA 3.0']['threshold']
 
+# Synchronize with global sidebar department scope
+global_dept = st.session_state.get("active_department", "All Departments (Overview)")
+
 # ==============================================================================
 # 1. TEMPLATE DOWNLOAD & SCHEMA GUIDANCE (WITH DEPARTMENT CUSTOMIZATION)
 # ==============================================================================
 with st.container(border=True):
-    st.subheader("📥 Departmental CSV Templates & Format Specification", anchor=False)
+    st.subheader("Departmental CSV Templates & Format Specification", anchor=False)
     st.markdown(
         "Download a pre-formatted template to ensure your institutional dataset matches the FEDRA 3.0 schema. "
         "Because different departments have different academic loads and risk factors, you can select your **specific department** "
@@ -52,10 +55,15 @@ with st.container(border=True):
     col_t_dept, col_dl1, col_dl2, col_demo = st.columns([1.2, 1, 1, 1.2])
     
     with col_t_dept:
+        dept_options_template = ["All Departments (General)"] + ALL_DEPARTMENTS
+        default_tpl_idx = 0
+        if global_dept != "All Departments (Overview)" and global_dept in dept_options_template:
+            default_tpl_idx = dept_options_template.index(global_dept)
+            
         dept_template_choice = st.selectbox(
             "Select Department for Template",
-            ["All Departments (General)"] + ALL_DEPARTMENTS,
-            index=0,
+            dept_options_template,
+            index=default_tpl_idx,
             help="Generates templates pre-aligned with this department's faculty and benchmarks."
         )
         target_dept_param = None if dept_template_choice == "All Departments (General)" else dept_template_choice
@@ -64,7 +72,7 @@ with st.container(border=True):
         blank_csv = get_csv_template(sample=False, department=target_dept_param)
         dept_slug = dept_template_choice.lower().replace(" ", "_") if target_dept_param else "all_departments"
         st.download_button(
-            label="📄 Blank template",
+            label="Download blank template",
             data=blank_csv,
             file_name=f"fedra3_template_{dept_slug}.csv",
             mime="text/csv",
@@ -75,7 +83,7 @@ with st.container(border=True):
     with col_dl2:
         sample_csv = get_csv_template(sample=True, department=target_dept_param)
         st.download_button(
-            label="📊 Sample data (10)",
+            label="Download sample data (10)",
             data=sample_csv,
             file_name=f"fedra3_sample_{dept_slug}.csv",
             mime="text/csv",
@@ -84,7 +92,7 @@ with st.container(border=True):
         )
         
     with col_demo:
-        demo_btn_lbl = f"⚡ Load demo ({target_dept_param[:14]}..)" if target_dept_param and len(target_dept_param) > 16 else f"⚡ Load demo ({target_dept_param or '10 students'})"
+        demo_btn_lbl = f"Load demo ({target_dept_param[:14]}..)" if target_dept_param and len(target_dept_param) > 16 else f"Load demo ({target_dept_param or '10 students'})"
         if st.button(demo_btn_lbl, use_container_width=True, type="secondary"):
             st.session_state['batch_df_raw'] = get_sample_dataframe(department=target_dept_param)
             st.session_state['batch_source_name'] = f"Demo ({dept_template_choice})"
@@ -92,7 +100,7 @@ with st.container(border=True):
                 del st.session_state['batch_predictions']
             st.rerun()
 
-    with st.expander("📋 View Expected CSV Column Schema & Guidelines", expanded=False):
+    with st.expander("View Expected CSV Column Schema & Guidelines", expanded=False):
         c_sch1, c_sch2 = st.columns(2)
         with c_sch1:
             st.markdown("""
@@ -129,7 +137,7 @@ st.divider()
 # ==============================================================================
 # 2. FILE UPLOADER & DATA PREPARATION
 # ==============================================================================
-st.subheader("📤 Upload Student CSV for Prediction", anchor=False)
+st.subheader("Upload Student CSV for Prediction", anchor=False)
 
 uploaded_file = st.file_uploader(
     "Choose a CSV file containing student records",
@@ -159,16 +167,16 @@ if 'batch_df_raw' in st.session_state:
     df_current = st.session_state['batch_df_raw']
     src_name = st.session_state.get('batch_source_name', 'Uploaded File')
     
-    st.info(f"📁 Loaded dataset: **{src_name}** | **{len(df_current):,}** student records detected across **{len(df_current.columns)}** columns.")
+    st.info(f"Loaded dataset: {src_name} | {len(df_current):,} student records detected across {len(df_current.columns)} columns.")
     
-    with st.expander("👁️ Preview Raw Uploaded Data (First 5 Rows)", expanded=False):
+    with st.expander("Preview Raw Uploaded Data (First 5 Rows)", expanded=False):
         st.dataframe(df_current.head(5), width='stretch')
 
     # Department Isolation Control
     depts_found = sorted([str(d) for d in df_current['Department'].dropna().unique() if str(d).strip() != '']) if 'Department' in df_current.columns else []
     
     with st.container(border=True):
-        st.subheader("🎯 Department Isolation & Focus Analysis", anchor=False)
+        st.subheader("Department Isolation & Focus Analysis", anchor=False)
         st.markdown(
             "Different departments possess distinct grading curves, course credit loads, and dropout dynamics. "
             "To isolate departmental risk profiles and avoid confounding effects across disparate programs, "
@@ -178,10 +186,13 @@ if 'batch_df_raw' in st.session_state:
         with col_dept_sel:
             if depts_found:
                 dept_options = ["All Departments (Overview)"] + depts_found
+                default_focus_idx = 0
+                if global_dept != "All Departments (Overview)" and global_dept in dept_options:
+                    default_focus_idx = dept_options.index(global_dept)
                 selected_dept_focus = st.selectbox(
                     "Active Department Focus",
                     dept_options,
-                    index=0,
+                    index=default_focus_idx,
                     help="Isolate all downstream KPIs, risk distributions, and triage recommendations to this specific department."
                 )
             else:
@@ -190,17 +201,17 @@ if 'batch_df_raw' in st.session_state:
         with col_dept_info:
             if selected_dept_focus != "All Departments (Overview)":
                 dept_n = int((df_current['Department'] == selected_dept_focus).sum())
-                st.info(f"🎯 **Department Focus:** Isolating **{selected_dept_focus}** ({dept_n:,} students, {dept_n/len(df_current)*100:.1f}% of cohort).")
+                st.info(f"Department Focus: Isolating {selected_dept_focus} ({dept_n:,} students, {dept_n/len(df_current)*100:.1f}% of cohort).")
             else:
-                st.info(f"🌐 **Cohort Overview:** Evaluating all {len(depts_found) if depts_found else 'available'} departments. Choose a specific department to isolate.")
+                st.info(f"Cohort Overview: Evaluating all {len(depts_found) if depts_found else 'available'} departments. Choose a specific department to isolate.")
 
     # Prediction Action Button
     col_btn, col_info = st.columns([1, 2])
     with col_btn:
-        run_pred = st.button("🔮 Run FEDRA 3.0 Batch Prediction", type="primary", use_container_width=True)
+        run_pred = st.button("Run FEDRA 3.0 Batch Prediction", type="primary", use_container_width=True)
         
     with col_info:
-        st.caption(f"Ensemble Models: CatBoost (w=0.45), XGBoost (w=0.45), Logistic Anchor (w=0.10) | Calibrated Cutoff: **{th_fedra*100:.1f}%**")
+        st.caption(f"Ensemble Models: CatBoost (w=0.45), XGBoost (w=0.45), Logistic Anchor (w=0.10) | Calibrated Cutoff: {th_fedra*100:.1f}%")
         
     if run_pred or ('batch_predictions' in st.session_state):
         if run_pred or ('batch_predictions' not in st.session_state):
@@ -234,7 +245,7 @@ if 'batch_df_raw' in st.session_state:
         critical_pct = (critical_n / total_n * 100) if total_n > 0 else 0.0
         avg_risk = float(res_df['Risk_Score_Pct'].mean()) if total_n > 0 else 0.0
         
-        st.subheader(f"📊 Assessment Summary & Early-Warning KPIs{dept_banner_text}", anchor=False)
+        st.subheader(f"Assessment Summary & Early-Warning KPIs{dept_banner_text}", anchor=False)
         
         with st.container(horizontal=True):
             st.metric("Total Records Evaluated", f"{total_n:,}", f"{selected_dept_focus if selected_dept_focus != 'All Departments (Overview)' else 'Full batch'}", border=True)
@@ -293,7 +304,7 @@ if 'batch_df_raw' in st.session_state:
         # ==============================================================================
         # 5. FILTERABLE STUDENT INTERVENTION QUEUE
         # ==============================================================================
-        st.subheader(f"📋 Scored Student Intervention Queue ({total_n:,} students){dept_banner_text}", anchor=False)
+        st.subheader(f"Scored Student Intervention Queue ({total_n:,} students){dept_banner_text}", anchor=False)
         
         # Filter row
         f_col1, f_col2, f_col3 = st.columns([1, 1, 1.5])
@@ -308,7 +319,7 @@ if 'batch_df_raw' in st.session_state:
             fac_filter = st.selectbox("Filter by Faculty", fac_options)
             
         with f_col3:
-            search_query = st.text_input("🔍 Search StudentID, State, Major...", placeholder="Type to filter...")
+            search_query = st.text_input("Search StudentID, State, Major...", placeholder="Type to filter...")
 
         # Apply filters
         filtered_res = res_df.copy()
@@ -341,7 +352,7 @@ if 'batch_df_raw' in st.session_state:
                     max_value=100.0,
                 ),
                 "GPA": st.column_config.NumberColumn("Current GPA", format="%.2f"),
-                "GPA_Momentum": st.column_config.NumberColumn("Δ Momentum", format="%+.2f"),
+                "GPA_Momentum": st.column_config.NumberColumn("Momentum", format="%+.2f"),
                 "AttendanceRate": st.column_config.NumberColumn("Attendance", format="%.1f%%"),
                 "YearOfStudy": st.column_config.TextColumn("Year"),
                 "Intervention_Priority": st.column_config.TextColumn("Triage Tier"),
@@ -356,7 +367,7 @@ if 'batch_df_raw' in st.session_state:
         # ==============================================================================
         # 6. DOWNLOAD SCORED PREDICTIONS (GLOBAL & DEPARTMENTAL)
         # ==============================================================================
-        st.subheader("💾 Export Scored Predictions", anchor=False)
+        st.subheader("Export Scored Predictions", anchor=False)
         st.markdown("Export enriched predictions with calibrated risk scores, probability tiers, and actionable intervention steps as CSV.")
 
         if selected_dept_focus != "All Departments (Overview)":
@@ -365,7 +376,7 @@ if 'batch_df_raw' in st.session_state:
                 dept_csv = res_df.to_csv(index=False).encode('utf-8')
                 dept_safe_name = selected_dept_focus.lower().replace(" ", "_")
                 st.download_button(
-                    label=f"🎯 Download {selected_dept_focus} Roster (CSV)",
+                    label=f"Download {selected_dept_focus} Roster (CSV)",
                     data=dept_csv,
                     file_name=f"fedra3_predictions_{dept_safe_name}.csv",
                     mime="text/csv",
@@ -376,7 +387,7 @@ if 'batch_df_raw' in st.session_state:
                 at_risk_df = res_df[res_df['Predicted_At_Risk'] == 1]
                 at_risk_csv = at_risk_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label=f"🚨 Download At-Risk Only ({len(at_risk_df):,})",
+                    label=f"Download At-Risk Only ({len(at_risk_df):,})",
                     data=at_risk_csv,
                     file_name=f"fedra3_predictions_{dept_safe_name}_at_risk.csv",
                     mime="text/csv",
@@ -386,7 +397,7 @@ if 'batch_df_raw' in st.session_state:
             with c_exp3:
                 full_csv = full_res_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="🌐 Download All Departments (CSV)",
+                    label="Download All Departments (CSV)",
                     data=full_csv,
                     file_name="fedra3_batch_predictions_all_departments.csv",
                     mime="text/csv",
@@ -397,7 +408,7 @@ if 'batch_df_raw' in st.session_state:
             with c_exp1:
                 full_csv = res_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="📥 Download Complete Scored Batch (CSV)",
+                    label="Download Complete Scored Batch (CSV)",
                     data=full_csv,
                     file_name="fedra3_batch_predictions_full.csv",
                     mime="text/csv",
@@ -408,7 +419,7 @@ if 'batch_df_raw' in st.session_state:
                 at_risk_df = res_df[res_df['Predicted_At_Risk'] == 1]
                 at_risk_csv = at_risk_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label=f"🚨 Download Flagged At-Risk Only ({len(at_risk_df):,} Students)",
+                    label=f"Download Flagged At-Risk Only ({len(at_risk_df):,} Students)",
                     data=at_risk_csv,
                     file_name="fedra3_batch_predictions_at_risk_only.csv",
                     mime="text/csv",
@@ -416,5 +427,5 @@ if 'batch_df_raw' in st.session_state:
                     use_container_width=True
                 )
 else:
-    st.info("👆 Please upload a student CSV file above, or click **⚡ Load demo sample data** to preview the batch prediction workflow.")
+    st.info("Please upload a student CSV file above, or click Load demo dataset to preview the batch prediction workflow.")
 

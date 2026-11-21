@@ -57,6 +57,9 @@ else:
     def_gpa, def_prev_gpa, def_att, def_study, def_failed = 3.0, 3.0, 70.0, 18.0, 1.0
     def_tuition, def_funding, def_allowance, def_dist, def_mentor = "Paid", "Self Funded", 35000.0, 100.0, 2
 
+# Synchronize with global sidebar department scope
+global_dept = st.session_state.get("active_department", "All Departments (Overview)")
+
 col_input, col_output = st.columns([1.1, 0.9])
 
 with col_input:
@@ -65,9 +68,18 @@ with col_input:
         
         c1, c2 = st.columns(2)
         with c1:
-            sel_faculty = st.selectbox("Faculty", FACULTIES, index=0)
+            default_fac_idx = 0
+            if global_dept != "All Departments (Overview)":
+                p_fac = get_faculty_for_department(global_dept)
+                if p_fac in FACULTIES:
+                    default_fac_idx = FACULTIES.index(p_fac)
+            sel_faculty = st.selectbox("Faculty", FACULTIES, index=default_fac_idx)
+            
             dept_choices = FACULTY_DEPARTMENTS_MAP.get(sel_faculty, ["Computer Science"])
-            sel_dept = st.selectbox("Department (Specific Major)", dept_choices, index=0)
+            default_dept_idx = 0
+            if global_dept in dept_choices:
+                default_dept_idx = dept_choices.index(global_dept)
+            sel_dept = st.selectbox("Department (Specific Major)", dept_choices, index=default_dept_idx)
             sel_gender = st.selectbox("Gender", ["Male", "Female"])
             sel_year = st.selectbox("Year of study", [1, 2, 3, 4, 5], index=1, format_func=lambda y: f"Year {y} ({y}00 Level)")
         with c2:
@@ -122,13 +134,13 @@ with col_output:
     with st.container(border=True):
         st.subheader("FEDRA 3.0 Early-Warning Assessment", anchor=False)
         
-        # Priority Alert Banner
+        # Priority Alert Banner (No Emojis)
         if priority == "Critical Priority":
-            st.error(f"🚨 **CRITICAL ATTRITION RISK** | Estimated Dropout Probability: **{risk_pct:.1f}%**")
+            st.error(f"CRITICAL ATTRITION RISK | Estimated Dropout Probability: {risk_pct:.1f}%")
         elif priority == "Moderate Risk":
-            st.warning(f"⚠️ **MODERATE RISK DETECTED** | Estimated Dropout Probability: **{risk_pct:.1f}%**")
+            st.warning(f"MODERATE RISK DETECTED | Estimated Dropout Probability: {risk_pct:.1f}%")
         else:
-            st.success(f"✅ **ON TRACK / SATISFACTORY** | Estimated Dropout Probability: **{risk_pct:.1f}%**")
+            st.success(f"ON TRACK / SATISFACTORY | Estimated Dropout Probability: {risk_pct:.1f}%")
 
         # 1. Plotly Risk Gauge Meter
         fig_gauge = plot_student_risk_gauge(risk_pct, threshold_pct=th_fedra * 100)

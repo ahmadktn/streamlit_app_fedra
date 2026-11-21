@@ -8,7 +8,14 @@ src_path = str(Path(__file__).resolve().parent.parent / "src")
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
-from fedra_app.pipeline import train_suite_models, FACULTIES, STATES
+from fedra_app.pipeline import (
+    train_suite_models,
+    FACULTIES,
+    STATES,
+    FACULTY_DEPARTMENTS_MAP,
+    ALL_DEPARTMENTS,
+    get_faculty_for_department
+)
 from fedra_app.visualizations import (
     plot_academic_outcomes_donut,
     plot_academic_momentum_box,
@@ -19,24 +26,40 @@ from fedra_app.visualizations import (
     plot_tuition_risk_impact
 )
 
-st.header("Exploratory Data Analysis & Empirical Risk Patterns", anchor=False)
-st.caption("Comprehensive empirical analysis, statistical distributions, cross-tabulations, and visualizations across the 50,150 Nigerian university student cohort.")
+# Synchronize with global sidebar department scope
+global_dept = st.session_state.get("active_department", "All Departments (Overview)")
+
+if global_dept != "All Departments (Overview)":
+    parent_fac = get_faculty_for_department(global_dept)
+    st.header(f"Exploratory Data Analysis: {global_dept}", anchor=False)
+    st.caption(f"Empirical risk patterns, distributions, and cross-tabulations isolated for {global_dept} ({parent_fac}).")
+else:
+    st.header("Exploratory Data Analysis & Empirical Risk Patterns", anchor=False)
+    st.caption("Comprehensive empirical analysis across the 50,150 Nigerian university student cohort. Select a department in the sidebar to isolate program risks.")
 
 with st.spinner("Loading cohort datasets and computing statistical aggregates..."):
     artifacts = train_suite_models()
 
 df = artifacts['data']['df'].copy()
 
-# 1. Global KPI Summary Row
-total_cohort = len(df)
-overall_attrition = (df['Actual_Attrition'].mean() * 100) if 'Actual_Attrition' in df.columns else (df['Predicted_At_Risk'].mean() * 100)
-unpaid_tuition_pct = (df['TuitionPaid'].astype(str).str.lower().isin(['unpaid', '0', 'no'])).mean() * 100
-avg_gpa = float(df['GPA'].mean())
-avg_att = float(df['AttendanceRate'].mean())
+# Initial scoping from global sidebar
+if global_dept != "All Departments (Overview)" and 'Department' in df.columns:
+    base_df = df[df['Department'] == global_dept].copy()
+else:
+    base_df = df.copy()
+
+# 1. KPI Summary Row (Computed on Scoped Dataset)
+total_cohort = len(base_df)
+overall_attrition = (base_df['Actual_Attrition'].mean() * 100) if 'Actual_Attrition' in base_df.columns else (base_df['Predicted_At_Risk'].mean() * 100)
+unpaid_tuition_pct = (base_df['TuitionPaid'].astype(str).str.lower().isin(['unpaid', '0', 'no'])).mean() * 100
+avg_gpa = float(base_df['GPA'].mean()) if total_cohort > 0 else 0.0
+avg_att = float(base_df['AttendanceRate'].mean()) if total_cohort > 0 else 0.0
+
+scope_label = global_dept if global_dept != "All Departments (Overview)" else "All Departments"
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.metric("Total Cohort (N)", f"{total_cohort:,}", "Nigerian Universities", border=True)
+    st.metric("Total Cohort (N)", f"{total_cohort:,}", f"Scope: {scope_label}", border=True)
 with c2:
     st.metric("Historical Attrition Rate", f"{overall_attrition:.1f}%", "Dropout + Suspension", delta_color="inverse", border=True)
 with c3:
@@ -50,7 +73,12 @@ st.divider()
 with st.expander("Cohort Data Slicing & Subgroup Filtering", expanded=False):
     f_col1, f_col2, f_col3, f_col4 = st.columns(4)
     with f_col1:
-        sel_faculty = st.selectbox("Faculty", ["All Faculties"] + FACULTIES, index=0)
+        default_fac_idx = 0
+        if global_dept != "All Departments (Overview)":
+            p_fac = get_faculty_for_department(global_dept)
+            if p_fac in FACULTIES:
+                default_fac_idx = FACULTIES.index(p_fac) + 1
+        sel_faculty = st.selectbox("Faculty", ["All Faculties"] + FACULTIES, index=default_fac_idx)
     with f_col2:
         sel_gender = st.selectbox("Gender", ["All", "Male", "Female"], index=0)
     with f_col3:
@@ -58,8 +86,8 @@ with st.expander("Cohort Data Slicing & Subgroup Filtering", expanded=False):
     with f_col4:
         sel_tuition = st.selectbox("Tuition status", ["All", "Paid", "Unpaid"], index=0)
 
-filtered_df = df.copy()
-if sel_faculty != "All Faculties":
+filtered_df = base_df.copy()
+if sel_faculty != "All Faculties" and 'Faculty' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Faculty'] == sel_faculty]
 if sel_gender != "All":
     filtered_df = filtered_df[filtered_df['Gender'] == sel_gender]

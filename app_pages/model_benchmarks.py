@@ -104,10 +104,10 @@ with st.container(border=True):
         )
         
         st.info(
-            "💡 **Key Findings Across Academic Years:**\n"
-            "- **Consistent Sensitivity:** FEDRA 3.0 maintains high sensitivity (**Recall ≥ 95.8%**) across every academic year, ensuring high-risk students are never missed at any stage.\n"
-            "- **Year 1 (100L) Vulnerability:** Highest attrition rate (~37.9%) driven by academic transition shock, university adaptation, and foundational prerequisite courses.\n"
-            "- **Year 4 & 5 (400L–500L) Dynamics:** Attrition in senior years drops to ~31–33%, where risk is heavily driven by accumulated tuition arrears and final-year thesis/project requirements rather than sudden academic failure."
+            "Key Findings Across Academic Years:\n"
+            "- Consistent Sensitivity: FEDRA 3.0 maintains high sensitivity (Recall >= 95.8%) across every academic year, ensuring high-risk students are never missed at any stage.\n"
+            "- Year 1 (100L) Vulnerability: Highest attrition rate (~37.9%) driven by academic transition shock, university adaptation, and foundational prerequisite courses.\n"
+            "- Year 4 & 5 (400L-500L) Dynamics: Attrition in senior years drops to ~31-33%, where risk is heavily driven by accumulated tuition arrears and final-year thesis/project requirements rather than sudden academic failure."
         )
 
 # 3. Diagnostic Visualizations (ROC, PR, Reliability Curves - From Notebook Cell 10)
