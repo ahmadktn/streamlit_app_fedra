@@ -40,7 +40,7 @@ avg_gpa = float(df['GPA'].mean())
 with st.container(horizontal=True):
     st.metric("Total enrolled cohort", f"{total_students:,}", "Active university students", border=True)
     st.metric("At-risk students flagged", f"{at_risk_count:,}", f"{at_risk_pct:.1f}% cohort", delta_color="inverse", border=True)
-    st.metric("Critical priority alerts", f"{critical_count:,}", "Risk score >= 60%", delta_color="inverse", border=True)
+    # st.metric("Critical priority alerts", f"{critical_count:,}", "Risk score >= 60%", delta_color="inverse", border=True)
     st.metric("Cohort average GPA", f"{avg_gpa:.2f} / 5.0", "5.0 CGPA Scale", border=True)
 
 st.divider()
