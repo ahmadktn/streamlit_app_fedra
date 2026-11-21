@@ -19,59 +19,75 @@ from fedra_app.pipeline import (
     get_csv_template,
     get_sample_dataframe,
     FACULTIES,
-    STATES
+    STATES,
+    FACULTY_DEPARTMENTS_MAP,
+    ALL_DEPARTMENTS,
+    get_faculty_for_department
 )
 from fedra_app.visualizations import (
     plot_batch_risk_distribution,
     plot_batch_priority_donut,
-    plot_batch_faculty_bars
+    plot_batch_faculty_bars,
+    plot_department_risk_bars
 )
 
 st.header("Batch student risk prediction & CSV upload", anchor=False)
-st.caption("Upload institutional rosters or class cohorts to run FEDRA 3.0 multi-scale ensemble attrition predictions, triage risk tiers, and generate actionable intervention recommendations.")
+st.caption("Upload institutional rosters or departmental cohorts to run FEDRA 3.0 multi-scale ensemble attrition predictions, isolate department-level risks, and generate actionable intervention recommendations.")
 
 with st.spinner("Initializing FEDRA 3.0 ensemble pipeline..."):
     artifacts = train_suite_models()
     th_fedra = artifacts['eval']['FEDRA 3.0']['threshold']
 
 # ==============================================================================
-# 1. TEMPLATE DOWNLOAD & SCHEMA GUIDANCE
+# 1. TEMPLATE DOWNLOAD & SCHEMA GUIDANCE (WITH DEPARTMENT CUSTOMIZATION)
 # ==============================================================================
 with st.container(border=True):
-    st.subheader("📥 CSV Templates & Format Specification", anchor=False)
+    st.subheader("📥 Departmental CSV Templates & Format Specification", anchor=False)
     st.markdown(
         "Download a pre-formatted template to ensure your institutional dataset matches the FEDRA 3.0 schema. "
-        "You can download either a **blank header template** or a **sample populated batch** containing 10 diverse Nigerian student profiles."
+        "Because different departments have different academic loads and risk factors, you can select your **specific department** "
+        "to download a tailored blank header or sample data populated with realistic Nigerian student records."
     )
     
-    col_dl1, col_dl2, col_demo = st.columns([1, 1, 1.2])
+    col_t_dept, col_dl1, col_dl2, col_demo = st.columns([1.2, 1, 1, 1.2])
     
+    with col_t_dept:
+        dept_template_choice = st.selectbox(
+            "Select Department for Template",
+            ["All Departments (General)"] + ALL_DEPARTMENTS,
+            index=0,
+            help="Generates templates pre-aligned with this department's faculty and benchmarks."
+        )
+        target_dept_param = None if dept_template_choice == "All Departments (General)" else dept_template_choice
+        
     with col_dl1:
-        blank_csv = get_csv_template(sample=False)
+        blank_csv = get_csv_template(sample=False, department=target_dept_param)
+        dept_slug = dept_template_choice.lower().replace(" ", "_") if target_dept_param else "all_departments"
         st.download_button(
-            label="📄 Download blank template",
+            label="📄 Blank template",
             data=blank_csv,
-            file_name="fedra3_student_template_blank.csv",
+            file_name=f"fedra3_template_{dept_slug}.csv",
             mime="text/csv",
-            help="CSV containing the canonical 26 column headers ready for data entry.",
+            help=f"CSV containing the canonical column headers customized for {dept_template_choice}.",
             use_container_width=True
         )
         
     with col_dl2:
-        sample_csv = get_csv_template(sample=True)
+        sample_csv = get_csv_template(sample=True, department=target_dept_param)
         st.download_button(
-            label="📊 Download sample data CSV",
+            label="📊 Sample data (10)",
             data=sample_csv,
-            file_name="fedra3_sample_students_10.csv",
+            file_name=f"fedra3_sample_{dept_slug}.csv",
             mime="text/csv",
-            help="CSV with 10 representative Nigerian student profiles for immediate testing.",
+            help=f"CSV with 10 representative Nigerian student profiles for {dept_template_choice}.",
             use_container_width=True
         )
         
     with col_demo:
-        if st.button("⚡ Load demo sample data (10 students)", use_container_width=True, type="secondary"):
-            st.session_state['batch_df_raw'] = get_sample_dataframe()
-            st.session_state['batch_source_name'] = "Demo Sample (10 students)"
+        demo_btn_lbl = f"⚡ Load demo ({target_dept_param[:14]}..)" if target_dept_param and len(target_dept_param) > 16 else f"⚡ Load demo ({target_dept_param or '10 students'})"
+        if st.button(demo_btn_lbl, use_container_width=True, type="secondary"):
+            st.session_state['batch_df_raw'] = get_sample_dataframe(department=target_dept_param)
+            st.session_state['batch_source_name'] = f"Demo ({dept_template_choice})"
             if 'batch_predictions' in st.session_state:
                 del st.session_state['batch_predictions']
             st.rerun()
@@ -102,9 +118,9 @@ with st.container(border=True):
             - `DistanceFromHome`: Commute distance from residence in km (e.g. `35`)
             - `Faculty`: Target faculty (e.g. `Faculty of Science`, `Faculty of Engineering`)
             - `Department`: Student major/department (e.g. `Computer Science`)
+            - `YearOfStudy`: Academic year level (`1`, `2`, `3`, `4`, `5`)
             - `State`: State of origin (e.g. `Lagos`, `Kano`, `Plateau`)
             - `Gender`: `Male`, `Female`
-            - `ParentalEducationLevel`: `Primary`, `Secondary`, `Tertiary`
             """)
         st.caption("ℹ️ *Note: Missing or unrecognized columns will automatically fall back to balanced median/mode baseline values so prediction never fails.*")
 
@@ -148,6 +164,36 @@ if 'batch_df_raw' in st.session_state:
     with st.expander("👁️ Preview Raw Uploaded Data (First 5 Rows)", expanded=False):
         st.dataframe(df_current.head(5), width='stretch')
 
+    # Department Isolation Control
+    depts_found = sorted([str(d) for d in df_current['Department'].dropna().unique() if str(d).strip() != '']) if 'Department' in df_current.columns else []
+    
+    with st.container(border=True):
+        st.subheader("🎯 Department Isolation & Focus Analysis", anchor=False)
+        st.markdown(
+            "Different departments possess distinct grading curves, course credit loads, and dropout dynamics. "
+            "To isolate departmental risk profiles and avoid confounding effects across disparate programs, "
+            "select **one department at a time** below for dedicated analysis, triage, and targeted export."
+        )
+        col_dept_sel, col_dept_info = st.columns([1.5, 2])
+        with col_dept_sel:
+            if depts_found:
+                dept_options = ["All Departments (Overview)"] + depts_found
+                selected_dept_focus = st.selectbox(
+                    "Active Department Focus",
+                    dept_options,
+                    index=0,
+                    help="Isolate all downstream KPIs, risk distributions, and triage recommendations to this specific department."
+                )
+            else:
+                selected_dept_focus = "All Departments (Overview)"
+                st.caption("No 'Department' column detected in dataset; analyzing complete cohort.")
+        with col_dept_info:
+            if selected_dept_focus != "All Departments (Overview)":
+                dept_n = int((df_current['Department'] == selected_dept_focus).sum())
+                st.info(f"🎯 **Department Focus:** Isolating **{selected_dept_focus}** ({dept_n:,} students, {dept_n/len(df_current)*100:.1f}% of cohort).")
+            else:
+                st.info(f"🌐 **Cohort Overview:** Evaluating all {len(depts_found) if depts_found else 'available'} departments. Choose a specific department to isolate.")
+
     # Prediction Action Button
     col_btn, col_info = st.columns([1, 2])
     with col_btn:
@@ -166,7 +212,15 @@ if 'batch_df_raw' in st.session_state:
                     st.error(f"Prediction failed: {ex}")
                     st.stop()
                     
-        res_df = st.session_state['batch_predictions']
+        full_res_df = st.session_state['batch_predictions']
+        
+        # Isolate to single department if selected
+        if selected_dept_focus != "All Departments (Overview)" and 'Department' in full_res_df.columns:
+            res_df = full_res_df[full_res_df['Department'] == selected_dept_focus].copy()
+            dept_banner_text = f" (Isolated Department: {selected_dept_focus})"
+        else:
+            res_df = full_res_df.copy()
+            dept_banner_text = ""
         
         st.divider()
         
@@ -174,32 +228,32 @@ if 'batch_df_raw' in st.session_state:
         # 3. KPI SUMMARY CARDS
         # ==============================================================================
         total_n = len(res_df)
-        at_risk_n = int(res_df['Predicted_At_Risk'].sum())
+        at_risk_n = int(res_df['Predicted_At_Risk'].sum()) if total_n > 0 else 0
         at_risk_pct = (at_risk_n / total_n * 100) if total_n > 0 else 0.0
-        critical_n = int((res_df['Intervention_Priority'] == 'Critical Priority').sum())
+        critical_n = int((res_df['Intervention_Priority'] == 'Critical Priority').sum()) if total_n > 0 else 0
         critical_pct = (critical_n / total_n * 100) if total_n > 0 else 0.0
         avg_risk = float(res_df['Risk_Score_Pct'].mean()) if total_n > 0 else 0.0
         
-        st.subheader("📊 Batch Assessment Summary & Early-Warning KPIs", anchor=False)
+        st.subheader(f"📊 Assessment Summary & Early-Warning KPIs{dept_banner_text}", anchor=False)
         
         with st.container(horizontal=True):
-            st.metric("Total Records Evaluated", f"{total_n:,}", "Students in batch", border=True)
+            st.metric("Total Records Evaluated", f"{total_n:,}", f"{selected_dept_focus if selected_dept_focus != 'All Departments (Overview)' else 'Full batch'}", border=True)
             st.metric(
                 "Flagged At-Risk",
                 f"{at_risk_n:,}",
-                f"{at_risk_pct:.1f}% of batch",
+                f"{at_risk_pct:.1f}% of cohort",
                 delta_color="inverse",
                 border=True
             )
             st.metric(
                 "Critical Priority Alerts",
                 f"{critical_n:,}",
-                f"{critical_pct:.1f}% of batch",
+                f"{critical_pct:.1f}% of cohort",
                 delta_color="inverse",
                 border=True
             )
             st.metric(
-                "Batch Mean Risk Score",
+                "Cohort Mean Risk Score",
                 f"{avg_risk:.1f}%",
                 f"Cutoff: {th_fedra*100:.1f}%",
                 delta_color="inverse",
@@ -209,7 +263,7 @@ if 'batch_df_raw' in st.session_state:
         # ==============================================================================
         # 4. VISUAL DISTRIBUTION & BREAKDOWN CHARTS
         # ==============================================================================
-        st.markdown("##### Batch Risk Visualizations & Distributions")
+        st.markdown(f"##### Risk Visualizations & Distributions{dept_banner_text}")
         col_c1, col_c2 = st.columns([1.3, 1])
         
         with col_c1:
@@ -220,7 +274,16 @@ if 'batch_df_raw' in st.session_state:
             fig_donut = plot_batch_priority_donut(res_df)
             st.plotly_chart(fig_donut, width='stretch')
 
-        if 'Faculty' in res_df.columns and res_df['Faculty'].nunique() > 1:
+        # Department Comparative Ranking Bar Chart
+        if 'Department' in full_res_df.columns and full_res_df['Department'].nunique() > 1:
+            fig_dept_comp = plot_department_risk_bars(
+                full_res_df,
+                selected_dept=selected_dept_focus if selected_dept_focus != "All Departments (Overview)" else None,
+                max_departments=12
+            )
+            if fig_dept_comp:
+                st.plotly_chart(fig_dept_comp, width='stretch')
+        elif 'Faculty' in res_df.columns and res_df['Faculty'].nunique() > 1:
             fig_fac = plot_batch_faculty_bars(res_df)
             if fig_fac:
                 st.plotly_chart(fig_fac, width='stretch')
@@ -230,7 +293,7 @@ if 'batch_df_raw' in st.session_state:
         # ==============================================================================
         # 5. FILTERABLE STUDENT INTERVENTION QUEUE
         # ==============================================================================
-        st.subheader(f"📋 Scored Student Intervention Queue ({total_n:,} students)", anchor=False)
+        st.subheader(f"📋 Scored Student Intervention Queue ({total_n:,} students){dept_banner_text}", anchor=False)
         
         # Filter row
         f_col1, f_col2, f_col3 = st.columns([1, 1, 1.5])
@@ -245,7 +308,7 @@ if 'batch_df_raw' in st.session_state:
             fac_filter = st.selectbox("Filter by Faculty", fac_options)
             
         with f_col3:
-            search_query = st.text_input("🔍 Search StudentID, Department, State...", placeholder="Type to filter...")
+            search_query = st.text_input("🔍 Search StudentID, State, Major...", placeholder="Type to filter...")
 
         # Apply filters
         filtered_res = res_df.copy()
@@ -261,7 +324,7 @@ if 'batch_df_raw' in st.session_state:
         st.caption(f"Showing **{len(filtered_res):,}** of **{total_n:,}** student records.")
 
         display_queue_cols = [
-            'StudentID', 'Faculty', 'Department', 'State', 'Gender',
+            'StudentID', 'Faculty', 'Department', 'YearOfStudy', 'State', 'Gender',
             'GPA', 'PreviousSemesterGPA', 'GPA_Momentum', 'AttendanceRate', 'TuitionPaid',
             'Risk_Score_Pct', 'Intervention_Priority', 'Actionable_Recommendation'
         ]
@@ -280,6 +343,7 @@ if 'batch_df_raw' in st.session_state:
                 "GPA": st.column_config.NumberColumn("Current GPA", format="%.2f"),
                 "GPA_Momentum": st.column_config.NumberColumn("Δ Momentum", format="%+.2f"),
                 "AttendanceRate": st.column_config.NumberColumn("Attendance", format="%.1f%%"),
+                "YearOfStudy": st.column_config.TextColumn("Year"),
                 "Intervention_Priority": st.column_config.TextColumn("Triage Tier"),
                 "Actionable_Recommendation": st.column_config.TextColumn("Personalized Intervention Action")
             },
@@ -290,35 +354,67 @@ if 'batch_df_raw' in st.session_state:
         st.divider()
 
         # ==============================================================================
-        # 6. DOWNLOAD SCORED PREDICTIONS
+        # 6. DOWNLOAD SCORED PREDICTIONS (GLOBAL & DEPARTMENTAL)
         # ==============================================================================
         st.subheader("💾 Export Scored Predictions", anchor=False)
-        st.markdown("Export the enriched predictions with risk scores, probabilities, and actionable recommendations as CSV.")
+        st.markdown("Export enriched predictions with calibrated risk scores, probability tiers, and actionable intervention steps as CSV.")
 
-        c_exp1, c_exp2 = st.columns(2)
-        
-        with c_exp1:
-            full_csv = res_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Complete Scored Batch (CSV)",
-                data=full_csv,
-                file_name="fedra3_batch_predictions_full.csv",
-                mime="text/csv",
-                type="primary",
-                use_container_width=True
-            )
-            
-        with c_exp2:
-            at_risk_df = res_df[res_df['Predicted_At_Risk'] == 1]
-            at_risk_csv = at_risk_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label=f"🚨 Download Flagged At-Risk Only ({len(at_risk_df):,} Students)",
-                data=at_risk_csv,
-                file_name="fedra3_batch_predictions_at_risk_only.csv",
-                mime="text/csv",
-                disabled=(len(at_risk_df) == 0),
-                use_container_width=True
-            )
+        if selected_dept_focus != "All Departments (Overview)":
+            c_exp1, c_exp2, c_exp3 = st.columns([1.2, 1, 1])
+            with c_exp1:
+                dept_csv = res_df.to_csv(index=False).encode('utf-8')
+                dept_safe_name = selected_dept_focus.lower().replace(" ", "_")
+                st.download_button(
+                    label=f"🎯 Download {selected_dept_focus} Roster (CSV)",
+                    data=dept_csv,
+                    file_name=f"fedra3_predictions_{dept_safe_name}.csv",
+                    mime="text/csv",
+                    type="primary",
+                    use_container_width=True
+                )
+            with c_exp2:
+                at_risk_df = res_df[res_df['Predicted_At_Risk'] == 1]
+                at_risk_csv = at_risk_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label=f"🚨 Download At-Risk Only ({len(at_risk_df):,})",
+                    data=at_risk_csv,
+                    file_name=f"fedra3_predictions_{dept_safe_name}_at_risk.csv",
+                    mime="text/csv",
+                    disabled=(len(at_risk_df) == 0),
+                    use_container_width=True
+                )
+            with c_exp3:
+                full_csv = full_res_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="🌐 Download All Departments (CSV)",
+                    data=full_csv,
+                    file_name="fedra3_batch_predictions_all_departments.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+        else:
+            c_exp1, c_exp2 = st.columns(2)
+            with c_exp1:
+                full_csv = res_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Complete Scored Batch (CSV)",
+                    data=full_csv,
+                    file_name="fedra3_batch_predictions_full.csv",
+                    mime="text/csv",
+                    type="primary",
+                    use_container_width=True
+                )
+            with c_exp2:
+                at_risk_df = res_df[res_df['Predicted_At_Risk'] == 1]
+                at_risk_csv = at_risk_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label=f"🚨 Download Flagged At-Risk Only ({len(at_risk_df):,} Students)",
+                    data=at_risk_csv,
+                    file_name="fedra3_batch_predictions_at_risk_only.csv",
+                    mime="text/csv",
+                    disabled=(len(at_risk_df) == 0),
+                    use_container_width=True
+                )
 else:
     st.info("👆 Please upload a student CSV file above, or click **⚡ Load demo sample data** to preview the batch prediction workflow.")
 

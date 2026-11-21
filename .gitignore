@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+FEDRA3_TEAM_REPORT.doc
+FEDRA3_TEAM_REPORT.md
+FEDRA3_TEAM_REPORT.html

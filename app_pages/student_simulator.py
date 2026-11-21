@@ -8,11 +8,20 @@ src_path = str(Path(__file__).resolve().parent.parent / "src")
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
-from fedra_app.pipeline import train_suite_models, predict_single_student, compute_student_shap, FACULTIES, STATES
+from fedra_app.pipeline import (
+    train_suite_models,
+    predict_single_student,
+    compute_student_shap,
+    FACULTIES,
+    STATES,
+    FACULTY_DEPARTMENTS_MAP,
+    ALL_DEPARTMENTS,
+    get_faculty_for_department
+)
 from fedra_app.visualizations import plot_student_risk_gauge, plot_student_shap_waterfall, plot_what_if_comparison
 
 st.header("Single-student risk simulator & what-if lab", anchor=False)
-st.caption("Diagnose individual risk trajectories, simulate scenario interventions, and view real-time risk adjustments for Nigerian students. To score an entire cohort or roster from a CSV file, visit **Batch CSV prediction** in the sidebar.")
+st.caption("Diagnose individual risk trajectories, isolate department-level academic nuances, simulate scenario interventions, and view real-time risk adjustments for Nigerian students. To score an entire cohort or roster from a CSV file, visit **Batch CSV prediction** in the sidebar.")
 
 artifacts = train_suite_models()
 meta_weights = artifacts['meta_weights']
@@ -57,10 +66,12 @@ with col_input:
         c1, c2 = st.columns(2)
         with c1:
             sel_faculty = st.selectbox("Faculty", FACULTIES, index=0)
+            dept_choices = FACULTY_DEPARTMENTS_MAP.get(sel_faculty, ["Computer Science"])
+            sel_dept = st.selectbox("Department (Specific Major)", dept_choices, index=0)
             sel_gender = st.selectbox("Gender", ["Male", "Female"])
-            sel_year = st.selectbox("Year of study", [1, 2, 3, 4, 5], index=1)
-            sel_tuition = st.selectbox("Tuition fee status", ["Paid", "Unpaid"], index=0 if def_tuition=="Paid" else 1)
+            sel_year = st.selectbox("Year of study", [1, 2, 3, 4, 5], index=1, format_func=lambda y: f"Year {y} ({y}00 Level)")
         with c2:
+            sel_tuition = st.selectbox("Tuition fee status", ["Paid", "Unpaid"], index=0 if def_tuition=="Paid" else 1)
             sel_state = st.selectbox("State of origin", STATES, index=STATES.index("Lagos") if "Lagos" in STATES else 0)
             sel_funding = st.selectbox("Funding source", ["Self Funded", "Government Loan", "Partial Scholarship", "Full Scholarship", "Family Support"], index=0 if def_funding=="Self Funded" else 2)
             sel_housing = st.selectbox("Housing accommodation", ["Off Campus", "On Campus", "Family Home"], index=0)
@@ -81,6 +92,7 @@ with col_input:
 # Student dictionary
 sim_student = {
     'Faculty': sel_faculty,
+    'Department': sel_dept,
     'State': sel_state,
     'Gender': sel_gender,
     'YearOfStudy': sel_year,
@@ -146,7 +158,7 @@ with tab_shap:
         col_sh_c, col_sh_t = st.columns([1.3, 1])
         with col_sh_c:
             fig_shap = plot_student_shap_waterfall(df_shap, base_val=base_val)
-            st.plotly_chart(fig_shap, use_container_width=True)
+            st.plotly_chart(fig_shap, width='stretch')
             
         with col_sh_t:
             st.markdown("**SHAP Feature Impact Breakdown Table**")
@@ -161,7 +173,7 @@ with tab_shap:
                     "direction": "Risk Effect"
                 },
                 hide_index=True,
-                use_container_width=True
+                width='stretch'
             )
             
     st.caption("Red bars indicate factors exacerbating student attrition risk. Green bars represent protective academic or demographic factors.")
@@ -203,7 +215,7 @@ with tab_whatif:
 
     with col_scen_chart:
         fig_whatif = plot_what_if_comparison(res, cf_res)
-        st.plotly_chart(fig_whatif, use_container_width=True)
+        st.plotly_chart(fig_whatif, width='stretch')
         
     st.divider()
     st.markdown("##### Counterfactual Intervention Impact Table")
@@ -240,6 +252,6 @@ with tab_whatif:
             'Change': 'Risk Downgraded' if cf_res['priority'] != priority else 'Same Tier'
         }
     ])
-    st.dataframe(cf_table, hide_index=True, use_container_width=True)
+    st.dataframe(cf_table, hide_index=True, width='stretch')
 
 

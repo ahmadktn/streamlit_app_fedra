@@ -6,7 +6,11 @@ from fedra_app.pipeline import (
     get_csv_template,
     get_sample_dataframe,
     assign_recommendation,
+    evaluate_models_by_year,
+    get_faculty_for_department,
     FACULTIES,
-    STATES
+    STATES,
+    FACULTY_DEPARTMENTS_MAP,
+    ALL_DEPARTMENTS
 )
 

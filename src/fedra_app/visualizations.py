@@ -747,3 +747,87 @@ def plot_batch_faculty_bars(df):
     fig.update_yaxes(title="")
     return fig
 
+
+def plot_year_performance_comparison(df_years):
+    """Grouped bar chart showing model performance metrics (Recall, Precision, F1) across academic years (1-5)."""
+    if df_years is None or df_years.empty:
+        return None
+        
+    x_labels = [f"Year {int(r['Year'])}<br><span style='font-size:10px;color:#64748b;'>{r['Academic_Stage'].split(' - ')[-1]}</span>" for _, r in df_years.iterrows()]
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        name='Recall (Catch Rate)',
+        x=x_labels,
+        y=df_years['Recall'] * 100,
+        marker_color='#10b981',
+        text=[f"{v*100:.1f}%" for v in df_years['Recall']],
+        textposition='outside'
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='Precision (Alert Accuracy)',
+        x=x_labels,
+        y=df_years['Precision'] * 100,
+        marker_color='#3b82f6',
+        text=[f"{v*100:.1f}%" for v in df_years['Precision']],
+        textposition='outside'
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='F1-Score (Balance)',
+        x=x_labels,
+        y=df_years['F1_Score'] * 100,
+        marker_color='#8b5cf6',
+        text=[f"{v*100:.1f}%" for v in df_years['F1_Score']],
+        textposition='outside'
+    ))
+    
+    fig.update_layout(barmode='group')
+    apply_sleek_layout(fig, title="Comparative Model Metrics Across Academic Years (Years 1 to 5)", height=400)
+    fig.update_yaxes(title="Metric Score (%)", range=[0, 115])
+    fig.update_xaxes(title="Academic Level (Year of Study)")
+    return fig
+
+
+def plot_department_risk_bars(df, selected_dept=None, max_departments=12):
+    """Bar chart ranking departments by mean risk, highlighting the selected department if given."""
+    if 'Department' not in df.columns:
+        return None
+        
+    dept_summary = df.groupby('Department').agg(
+        Mean_Risk=('Risk_Score_Pct', 'mean'),
+        Students=('StudentID', 'count')
+    ).reset_index().sort_values(by='Mean_Risk', ascending=True)
+    
+    if len(dept_summary) > max_departments and selected_dept is not None and selected_dept in dept_summary['Department'].values:
+        sel_row = dept_summary[dept_summary['Department'] == selected_dept]
+        others = dept_summary[dept_summary['Department'] != selected_dept].tail(max_departments - 1)
+        dept_summary = pd.concat([others, sel_row]).drop_duplicates().sort_values(by='Mean_Risk', ascending=True)
+    elif len(dept_summary) > max_departments:
+        dept_summary = dept_summary.tail(max_departments)
+        
+    colors = []
+    for d in dept_summary['Department']:
+        if selected_dept and d == selected_dept:
+            colors.append('#f59e0b')
+        else:
+            colors.append('#3b82f6')
+            
+    fig = go.Figure(go.Bar(
+        x=dept_summary['Mean_Risk'],
+        y=dept_summary['Department'],
+        orientation='h',
+        marker=dict(color=colors),
+        text=[f"{v:.1f}% ({s} stu)" for v, s in zip(dept_summary['Mean_Risk'], dept_summary['Students'])],
+        textposition='outside',
+        hovertemplate="Department: %{y}<br>Mean Risk: %{x:.1f}%<extra></extra>"
+    ))
+    
+    title_text = f"Department Risk Comparison (Highlighted: {selected_dept})" if selected_dept else "Department Mean Risk Ranking"
+    apply_sleek_layout(fig, title=title_text, height=max(300, len(dept_summary) * 32))
+    fig.update_xaxes(title="Average Dropout Probability (%)", range=[0, 105])
+    fig.update_yaxes(title="")
+    return fig
+
