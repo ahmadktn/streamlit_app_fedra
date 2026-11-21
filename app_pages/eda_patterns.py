@@ -31,11 +31,10 @@ df = artifacts['data']['df'].copy()
 total_cohort = len(df)
 overall_attrition = (df['Actual_Attrition'].mean() * 100) if 'Actual_Attrition' in df.columns else (df['Predicted_At_Risk'].mean() * 100)
 unpaid_tuition_pct = (df['TuitionPaid'].astype(str).str.lower().isin(['unpaid', '0', 'no'])).mean() * 100
-avg_momentum = float(df['GPA_Momentum'].mean())
 avg_gpa = float(df['GPA'].mean())
 avg_att = float(df['AttendanceRate'].mean())
 
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.metric("Total Cohort (N)", f"{total_cohort:,}", "Nigerian Universities", border=True)
 with c2:
@@ -43,8 +42,6 @@ with c2:
 with c3:
     st.metric("Unpaid Tuition Rate", f"{unpaid_tuition_pct:.1f}%", "Financial Precarity", delta_color="inverse", border=True)
 with c4:
-    st.metric("Mean GPA Momentum", f"{avg_momentum:+.2f}", "Semester Velocity", border=True)
-with c5:
     st.metric("Mean Attendance Rate", f"{avg_att:.1f}%", f"Mean GPA: {avg_gpa:.2f}", border=True)
 
 st.divider()
