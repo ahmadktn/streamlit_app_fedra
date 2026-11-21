@@ -67,7 +67,7 @@ with st.container(border=True):
 # 2. CROSS-YEAR COMPARATIVE PERFORMANCE BENCHMARK (YEARS 1 TO 5)
 # ==============================================================================
 with st.container(border=True):
-    st.subheader("📅 Cross-Year Comparative Analysis (Academic Stages 100L – 500L)", anchor=False)
+    st.subheader("Cross-Year Comparative Analysis (Academic Stages 100L – 500L)", anchor=False)
     st.markdown(
         "Student attrition risks evolve significantly as students advance through higher education. "
         "This comparative analysis benchmarks FEDRA 3.0 detection sensitivity, triage precision, and overall reliability "
